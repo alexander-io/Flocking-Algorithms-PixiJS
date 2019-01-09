@@ -8,6 +8,254 @@
     </script>
   </head>
   <body>
+    <script type="text/javascript">
+      let type = "WebGL"; if(!PIXI.utils.isWebGLSupported()){ type = "canvas" }
 
+var w = .987*(Math.max(document.documentElement.clientWidth, window.innerWidth || 0));
+var h = .965*(Math.max(document.documentElement.clientHeight, window.innerHeight || 0));
+
+//Create a Pixi Application
+let app = new PIXI.Application({width: w, height: h,
+  backgroundColor: 0x212121});
+document.body.appendChild(app.view);
+
+app.ticker.add(function() {
+app.renderer.autoResize = true;
+app.renderer.resize(.987*window.innerWidth,.965*window.innerHeight )
+})
+
+class Barrier {
+  constructor(size, origin, radius) {
+    this.radius = radius
+    this.size = size
+    this.shape = new PIXI.Graphics()
+
+    this.shape.lineStyle(0);
+    this.shape.beginFill(0xFFFF0B, 0.5);
+    this.shape.drawCircle(0, 0,size);
+
+    this.shape.endFill()
+
+    this.shape.x = origin.x
+    this.shape.y = origin.y
+    this.render()
+  }
+  render() {
+    app.stage.addChild(this.shape)
+  }
+}
+
+class Predator {
+  constructor(size, radius) {
+    this.size = size
+    this.radius = radius
+
+    this.shape = new PIXI.Graphics()
+  this.shape.lineStyle(0);
+    this.shape.beginFill(0x11fbbb, 0.5);
+    this.shape.drawCircle(0, 0,size);
+    this.shape.endFill()
+
+    this.shape.x = 500
+    this.shape.y = 200
+  }
+  render() {
+    app.stage.addChild(this.shape)
+  }
+  update_position() {
+    this.shape.x = app.renderer.plugins.interaction.mouse.global.x
+    this.shape.y = app.renderer.plugins.interaction.mouse.global.y
+  }
+}
+
+class Boid {
+  constructor (start, size, speed) {
+    this.speed = speed
+    this.container = new PIXI.Container()
+    this.graphics = new PIXI.Graphics();
+
+    this.graphics.beginFill(0xf9f9fa);
+    this.graphics.moveTo(0,0);
+    this.graphics.lineTo(size,0);
+    this.graphics.lineTo(0, -(size));
+    this.graphics.lineTo(-(size*0.9), size);
+    this.graphics.endFill();
+
+    this.direction = this.set_direction()
+    this.container.addChild(this.graphics)
+
+    this.container.x = start.x
+    this.container.y = start.y
+
+    this.container.rotation = this.direction.rad
+  }
+  render() {
+    app.stage.addChild(this.container);
+  }
+
+  set_direction() {
+    let random_rad = ((Math.random()*1000)%6.28319)-Math.PI
+    return {rad:random_rad,v:{x:Math.sin(random_rad),y:-Math.cos(random_rad)}}
+  }
+  update_direction(new_direction) {
+    this.direction.rad = (this.direction.rad + new_direction.rad)/2
+    this.direction.v.x = Math.sin(this.direction.rad)
+    this.direction.v.y = -Math.cos(this.direction.rad)
+    this.container.rotation = this.direction.rad
+  }
+
+  barrier_collision(barrier, magnitude) {
+    let div = 64
+
+    this.direction.rad > Math.PI || this.direction.rad < -(Math.PI) ? this.direction.rad = this.direction.rad%Math.PI : {}
+    let current_rad = (this.direction.rad)
+
+    // if boid is traveling upwards
+    if ((current_rad > -(Math.PI*.25) && current_rad < Math.PI*.25)) {
+      if (this.container.x > barrier.shape.x) {
+        this.direction.rad =  this.direction.rad+(1.74533/magnitude)
+        this.direction.v.x = Math.sin(this.direction.rad)
+        this.direction.v.y = -Math.cos(this.direction.rad)
+        this.container.rotation = this.direction.rad
+      } else {
+        this.direction.rad =  this.direction.rad-(1.74533/magnitude)
+        this.direction.v.x = Math.sin(this.direction.rad)
+        this.direction.v.y = -Math.cos(this.direction.rad)
+        this.container.rotation = this.direction.rad
+
+      }
+    }
+
+    // flying right
+    if (((current_rad > Math.PI*.25) && (current_rad < Math.PI)) || ((current_rad > (Math.PI*.5)) && current_rad < Math.PI*.75) ) {
+      if (this.container.y > barrier.shape.y) {
+        this.direction.rad =  this.direction.rad+(1.74533/magnitude)
+        this.direction.v.x = Math.sin(this.direction.rad)
+        this.direction.v.y = -Math.cos(this.direction.rad)
+        this.container.rotation = this.direction.rad
+      } else {
+        this.direction.rad =  this.direction.rad-(1.74533/magnitude)
+        this.direction.v.x = Math.sin(this.direction.rad)
+        this.direction.v.y = -Math.cos(this.direction.rad)
+        this.container.rotation = this.direction.rad
+      }
+    }
+
+    //     flying down
+    if ((current_rad > -(Math.PI) && current_rad < -(Math.PI*.75)) || ((current_rad < Math.PI) && (current_rad > Math.PI*.75))) {
+      if (this.container.x > barrier.shape.x) {
+        //         boid is right of barrier
+        this.direction.rad =  this.direction.rad-(1.74533/magnitude)
+        this.direction.v.x = Math.sin(this.direction.rad)
+        this.direction.v.y = -Math.cos(this.direction.rad)
+        this.container.rotation = this.direction.rad
+      } else {
+
+        this.direction.rad =  this.direction.rad+(1.74533/magnitude)
+        this.direction.v.x = Math.sin(this.direction.rad)
+        this.direction.v.y = -Math.cos(this.direction.rad)
+        this.container.rotation = this.direction.rad
+      }
+    }
+
+    if ((current_rad > -(Math.PI*.75)) && (current_rad < -(Math.PI*.25))) {
+      //       leftward collision
+      if (this.container.y > barrier.shape.y) {
+        // boid below  shape, turn down
+        this.direction.rad =  this.direction.rad-(1.74533/magnitude)
+        this.direction.v.x = Math.sin(this.direction.rad)
+        this.direction.v.y = -Math.cos(this.direction.rad)
+        this.container.rotation = this.direction.rad
+      } else {
+        this.direction.rad =  this.direction.rad+(1.74533/magnitude)
+        this.direction.v.x = Math.sin(this.direction.rad)
+        this.direction.v.y = -Math.cos(this.direction.rad)
+        this.container.rotation = this.direction.rad
+      }
+    }
+
+  }
+
+  fly() {
+    let s = 2+(this.speed/4)
+    this.container.x += (this.direction.v.x*s)
+    this.container.y += (this.direction.v.y*s)
+  }
+}
+
+let boid_factory = (num_boids, height) => {
+  let c = []
+  while (num_boids>0) {
+    c.push(new Boid({x:(Math.random()*1000%(app.screen.width/2)),y:(Math.random()*1000%(app.screen.height/2))}, (Math.random()*100)%height+10, (Math.random()*10)%3))
+    num_boids--
+  }
+  return c
+}
+
+let boids = boid_factory(128,1)
+
+for (x in boids) {
+  boids[x].render()
+}
+
+let dist = (p1, p2) => {
+  return Math.sqrt(((p2.x-p1.x)*(p2.x-p1.x)) + ((p2.y-p1.y)*(p2.y-p1.y)))
+}
+
+let b = new Barrier(15,{x:app.screen.width/2,y:app.screen.height/2}, 220)
+
+let barriers = []
+barriers.push(b);
+
+document.addEventListener("click", () => {
+    barriers.push(new Barrier(15, {x:app.renderer.plugins.interaction.mouse.global.x,y:app.renderer.plugins.interaction.mouse.global.y}, 220))
+})
+
+let p = new Predator(15, 150)
+p.render()
+
+let barrier_count = 0
+let count = 0
+app.ticker.add(function(delta) {
+
+  p.update_position() // update position of predator
+
+  for (x in boids) {
+    boids[x].fly()
+    // wall check
+    boids[x].container.x > app.screen.width ? boids[x].container.x = 0 : {}
+    boids[x].container.x < 0 ? boids[x].container.x = app.screen.width : {}
+    boids[x].container.y > app.screen.height ? boids[x].container.y = 0 : {}
+    boids[x].container.y < 0 ? boids[x].container.y = app.screen.height : {}
+
+    if (count%2==0) {
+      for (xx in barriers) {
+        if (dist({x:barriers[xx].shape.x,y:barriers[xx].shape.y}, {x:boids[x].container.x,y:boids[x].container.y}) < barriers[xx].radius) {
+      boids[x].barrier_collision(barriers[xx], 32) // update dir of boids according to  nearby barriers
+        }
+      }
+
+      if (dist({x:p.shape.x,y:p.shape.y}, {x:boids[x].container.x,y:boids[x].container.y}) < p.radius) {
+        boids[x].barrier_collision(p,16) // update dir of boids according to nearby predator
+      }
+    }
+
+
+  }
+  if (count==16 || count == 24 || count == 32 || count == 64 || count == 128) {
+    for (let i = 0; i < boids.length; i++) {
+      for (let j = i+1; j < boids.length; j++) {
+        if (dist({x:boids[i].container.x,y:boids[i].container.y}, {x:boids[j].container.x, y:boids[j].container.y}) < 100) {
+          boids[i].update_direction(boids[j].direction) // update dir of boids according to nearby boids
+        }
+      }
+    }
+  }
+  if (count >= 256) count = 0; count++
+})
+
+
+
+    </script>
   </body>
 </html>
